@@ -1,7 +1,5 @@
 # Pokémon TCG Collection Manager
 
-![Pokémon TCG Logo](https://upload.wikimedia.org/wikipedia/en/thumb/3/3b/Pokemon_Trading_Card_Game_Logo.svg/1200px-Pokemon_Trading_Card_Game_Logo.svg.png)
-
 - **Python 3.12+**
 - **Dependencias**:
   - `requests` (para la API y descarga de imágenes)
