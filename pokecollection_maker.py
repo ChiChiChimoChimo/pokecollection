@@ -1,52 +1,27 @@
 import sqlite3
 import requests
 import os
+import time
 
 # Configuración
-API_KEY = "AQUI TU CLAVE API"  # Tu clave API
+API_KEY = "65ff04ff-0d3c-44a9-bae9-f9572fba9576"  # Tu clave API
 BASE_URL = "https://api.pokemontcg.io/v2/cards"
 HEADERS = {"X-Api-Key": API_KEY}
 IMAGE_FOLDER = "card_images"  # Carpeta donde se guardarán las imágenes
+DB_PATH = "pokemon_collection.db"
+
+# Conjuntos Scarlet & Violet hasta el presente
+SV_SETS = ["sv1", "sv2", "sv3", "sv3pt5", "sv4", "sv4pt5", "sv5", "sv6", "sv6pt5", "sv7", "sv8", "sv8pt5", "sve"]
 
 # Crear la carpeta si no existe
 if not os.path.exists(IMAGE_FOLDER):
     os.makedirs(IMAGE_FOLDER)
 
-# Lista de cartas de prueba
-my_cards = [
-    {"card_id": "sv6-65", "quantity": 1},
-    {"card_id": "sv6-80", "quantity": 1},
-    {"card_id": "sv6-135", "quantity": 1},
-    {"card_id": "sv6-136", "quantity": 1},
-    {"card_id": "sv6-154", "quantity": 1},
-    {"card_id": "sv7-2", "quantity": 1},
-    {"card_id": "sv7-3", "quantity": 2},
-    {"card_id": "sv7-8", "quantity": 1},
-    {"card_id": "sv7-45", "quantity": 1},
-    {"card_id": "sv7-57", "quantity": 1},
-    {"card_id": "sv7-58", "quantity": 2},
-    {"card_id": "sv7-60", "quantity": 1},
-    {"card_id": "sv7-66", "quantity": 1},
-    {"card_id": "sv7-87", "quantity": 1},
-    {"card_id": "sv7-101", "quantity": 1},
-    {"card_id": "sv7-106", "quantity": 1},
-    {"card_id": "sv7-107", "quantity": 1},
-    {"card_id": "sv7-115", "quantity": 1},
-    {"card_id": "sv7-118", "quantity": 3},
-    {"card_id": "sv7-119", "quantity": 1},
-    {"card_id": "sv7-132", "quantity": 1},
-    {"card_id": "sv7-133", "quantity": 5},
-    {"card_id": "sv7-138", "quantity": 4}
-]
-
-# Conjuntos Scarlet & Violet hasta el presente
-SV_SETS = ["sv1", "sv2", "sv3", "sv3pt5", "sv4", "sv4pt5", "sv5", "sv6", "sv6pt5", "sv7", "sv8", "sv8pt5", "sve"]
-
-# Conectar a la base de datos
-conn = sqlite3.connect("pokemon_collection.db")
+# Conectar a la base de datos (esto sobrescribirá si ya existe)
+conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
-# Crear tablas
+# Crear tablas con todos los campos necesarios
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS cards (
     card_id TEXT PRIMARY KEY,
@@ -56,6 +31,7 @@ CREATE TABLE IF NOT EXISTS cards (
     number TEXT NOT NULL,
     rarity TEXT,
     type TEXT,
+    supertype TEXT,
     image_url TEXT
 )
 ''')
@@ -63,7 +39,16 @@ CREATE TABLE IF NOT EXISTS cards (
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS my_collection (
     card_id TEXT PRIMARY KEY,
-    quantity INTEGER NOT NULL
+    quantity INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (card_id) REFERENCES cards(card_id)
+)
+''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS decks (
+    deck_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deck_name TEXT NOT NULL,
+    deck_text TEXT NOT NULL
 )
 ''')
 
@@ -72,6 +57,7 @@ def get_cards_by_set(set_id):
     all_cards = []
     page = 1
     while True:
+        print(f"Obteniendo página {page} del conjunto {set_id}...")
         url = f"{BASE_URL}?q=set.id:{set_id}&page={page}&pageSize=250"
         response = requests.get(url, headers=HEADERS)
         if response.status_code != 200:
@@ -83,6 +69,7 @@ def get_cards_by_set(set_id):
         if len(cards) < 250:  # Última página
             break
         page += 1
+        time.sleep(0.2)  # Pausa para respetar límites de la API
     return all_cards
 
 # Función para descargar la imagen
@@ -100,6 +87,7 @@ def download_image(card_id, image_url):
         print(f"Imagen de {card_id} ya existe, omitiendo descarga")
 
 # Procesar todos los conjuntos SV
+total_cards = 0
 for set_id in SV_SETS:
     print(f"Obteniendo cartas del conjunto {set_id}...")
     set_cards = get_cards_by_set(set_id)
@@ -107,36 +95,35 @@ for set_id in SV_SETS:
     # Procesar todas las cartas del conjunto
     for card in set_cards:
         card_id = card["id"]
-        matching_card = next((c for c in my_cards if c["card_id"] == card_id), None)
-        quantity = matching_card["quantity"] if matching_card else 0
         
         # Insertar en 'cards'
-        image_url = card["images"]["small"]
         cursor.execute('''
-        INSERT OR IGNORE INTO cards (card_id, name, set_id, set_name, number, rarity, type, image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO cards (card_id, name, set_id, set_name, number, rarity, type, supertype, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             card["id"],
             card["name"],
             card["set"]["id"],
             card["set"]["name"],
             card["number"],
-            card.get("rarity", ""),
+            card.get("rarity", "Unknown"),
             card["types"][0] if card.get("types") else "",
-            image_url
+            card["supertype"],
+            card["images"]["small"]
         ))
 
-        # Insertar en 'my_collection'
+        # Insertar en 'my_collection' con cantidad 0 si no existe
         cursor.execute('''
-        INSERT OR REPLACE INTO my_collection (card_id, quantity)
-        VALUES (?, ?)
-        ''', (card_id, quantity))
+        INSERT OR IGNORE INTO my_collection (card_id, quantity)
+        VALUES (?, 0)
+        ''', (card_id,))
 
         # Descargar la imagen
-        download_image(card_id, image_url)
+        download_image(card_id, card["images"]["small"])
+        total_cards += 1
 
 # Guardar cambios y cerrar
 conn.commit()
 conn.close()
 
-print("Base de datos actualizada y todas las imágenes descargadas!")
+print(f"Base de datos creada con éxito! Total de cartas procesadas: {total_cards}")

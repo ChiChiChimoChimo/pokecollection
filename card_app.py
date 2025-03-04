@@ -18,7 +18,7 @@ RARITY_MAPPING = {
     "★ Rara": "Rare",
     "★★ Double Rare": "Double Rare",
     "★★★ Ultra Rara": "Ultra Rare",
-    "ACE SPEC": "ACE SPEC"
+    "ACE SPEC": "ACE SPEC Rare"
 }
 
 TYPE_MAPPING = {
@@ -375,20 +375,33 @@ class CardApp:
         energy_types = {}
 
         card_dict = {card[0]: card[6] for card in self.all_cards}  # card_id: supertype
+        trainer_keywords = {"Arven", "Iono", "Professor", "Lana", "Crispin", "Pokégear", "Catcher", 
+                            "Stretcher", "Vessel", "Poffin", "Ball", "Trolley", "Machine", "Cape", 
+                            "Board", "Artazon"}  # Palabras comunes en nombres de Entrenadores
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
 
         for qty, name, set_code, number in cards:
             api_set_code = SET_MAPPING.get(set_code.upper(), set_code.lower())
             card_id = f"{api_set_code}-{number}"
             supertype = card_dict.get(card_id, None)
 
-            # Si no está en card_dict, deducir supertype del nombre
+            # Si no está en card_dict, deducir supertype
             if supertype is None:
-                if "Energy" in name:
-                    supertype = "Energy"
-                elif set_code in SET_MAPPING:  # Aproximación para Pokémon
-                    supertype = "Pokémon"
+                # Consultar la base de datos para obtener el supertype exacto
+                cursor.execute("SELECT supertype FROM cards WHERE card_id = ?", (card_id,))
+                result = cursor.fetchone()
+                if result:
+                    supertype = result[0]
                 else:
-                    supertype = "Trainer"  # Aproximación para Entrenadores
+                    # Deducir si no está en la base de datos
+                    if "Energy" in name:
+                        supertype = "Energy"
+                    elif any(keyword in name for keyword in trainer_keywords):
+                        supertype = "Trainer"
+                    else:
+                        supertype = "Pokémon"  # Default para cartas no identificadas como Entrenadores o Energías
 
             if supertype == "Pokémon":
                 pokemon_count += qty
@@ -398,6 +411,8 @@ class CardApp:
                 energy_count += qty
                 energy_name = name.split(" Energy")[0] if " Energy" in name else name
                 energy_types[energy_name] = energy_types.get(energy_name, 0) + qty
+
+        conn.close()
 
         # Actualizar el resumen
         self.update_summary(pokemon_count, trainer_count, energy_count, energy_types)
@@ -414,27 +429,28 @@ class CardApp:
             api_set_code = SET_MAPPING.get(set_code.upper(), set_code.lower())
             card_id = f"{api_set_code}-{number}"
             image_path = os.path.join(IMAGE_FOLDER, f"{card_id}.png")
+            
+            card_frame = ttk.Frame(self.deck_inner_frame)
+            card_frame.grid(row=row, column=col, padx=2, pady=2)
+
             if os.path.exists(image_path):
                 img = Image.open(image_path)
                 img = img.resize((120, 168), Image.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 self.photos.append(photo)
-
-                card_frame = ttk.Frame(self.deck_inner_frame)
-                card_frame.grid(row=row, column=col, padx=2, pady=2)
-
                 img_label = ttk.Label(card_frame, image=photo)
-                img_label.pack()
-
-                ttk.Label(card_frame, text=f"{name}", wraplength=110).pack()
-                ttk.Label(card_frame, text=f"Cant: {qty}").pack()
-
-                col += 1
-                if col >= cols:
-                    col = 0
-                    row += 1
             else:
-                print(f"Imagen no encontrada: {image_path}")
+                print(f"Imagen no encontrada para {name} ({card_id}): {image_path}")
+                img_label = ttk.Label(card_frame, text="Imagen no encontrada")
+
+            img_label.pack()
+            ttk.Label(card_frame, text=f"{name}", wraplength=110).pack()
+            ttk.Label(card_frame, text=f"Cant: {qty}").pack()
+
+            col += 1
+            if col >= cols:
+                col = 0
+                row += 1
 
     def update_summary(self, pokemon_count, trainer_count, energy_count, energy_types):
         self.pokemon_summary.config(text=f"Pokémon: {pokemon_count}")
@@ -512,11 +528,9 @@ class CardApp:
         self.quantity_label.config(text=f"Cantidad: {quantity}")
         self.rarity_label.config(text=f"Rareza: {rarity or 'N/A'}")
         
-        # Determinar el tipo para energías basado en el nombre
+        # No mostrar el tipo específico de energía, dejar como "N/A" o vacío
         if supertype == "Energy":
-            # Extraer el tipo de energía del nombre
-            energy_type = name.split(" Energy")[0] if " Energy" in name else name
-            self.type_label.config(text=f"Tipo: {energy_type}")
+            self.type_label.config(text="Tipo: N/A")  # O podrías usar "Tipo: Energía" si prefieres
         else:
             self.type_label.config(text=f"Tipo: {card_type or 'N/A'}")
         
