@@ -3,7 +3,7 @@ import requests
 import os
 
 # Configuración
-API_KEY = "65ff04ff-0d3c-44a9-bae9-f9572fba9576"  # Tu clave API
+API_KEY = "AQUI TU CLAVE API"  # Tu clave API
 BASE_URL = "https://api.pokemontcg.io/v2/cards"
 HEADERS = {"X-Api-Key": API_KEY}
 IMAGE_FOLDER = "card_images"  # Carpeta donde se guardarán las imágenes
@@ -12,7 +12,7 @@ IMAGE_FOLDER = "card_images"  # Carpeta donde se guardarán las imágenes
 if not os.path.exists(IMAGE_FOLDER):
     os.makedirs(IMAGE_FOLDER)
 
-# Lista de tus cartas
+# Lista de cartas de prueba
 my_cards = [
     {"card_id": "sv6-65", "quantity": 1},
     {"card_id": "sv6-80", "quantity": 1},
@@ -40,7 +40,7 @@ my_cards = [
 ]
 
 # Conjuntos Scarlet & Violet hasta el presente
-SV_SETS = ["sv1", "sv2", "sv3", "sv3pt5", "sv4", "sv4pt5", "sv5", "sv6", "sv6pt5", "sv7"]
+SV_SETS = ["sv1", "sv2", "sv3", "sv3pt5", "sv4", "sv4pt5", "sv5", "sv6", "sv6pt5", "sv7", "sv8", "sv8pt5", "sve"]
 
 # Conectar a la base de datos
 conn = sqlite3.connect("pokemon_collection.db")
@@ -132,11 +132,11 @@ for set_id in SV_SETS:
         VALUES (?, ?)
         ''', (card_id, quantity))
 
-        # Descargar la imagen para todas las cartas
+        # Descargar la imagen
         download_image(card_id, image_url)
 
 # Guardar cambios y cerrar
 conn.commit()
 conn.close()
 
-print("Base de datos creada exitosamente y todas las imágenes descargadas!")
+print("Base de datos actualizada y todas las imágenes descargadas!")

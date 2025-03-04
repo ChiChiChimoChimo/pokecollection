@@ -28,6 +28,9 @@ TYPE_MAPPING = {
     "Planta": "Grass",
     "Eléctrico": "Lightning",
     "Psíquico": "Psychic",
+    "Lucha": "Fighting",
+    "Oscuridad": "Darkness",
+    "Metal": "Metal",
     "Entrenador": ""
 }
 
@@ -39,10 +42,13 @@ SET_MAPPING = {
     "PAR": "sv4",    # Paradox Rift
     "TEF": "sv5",    # Temporal Forces
     "TWM": "sv6",    # Twilight Masquerade
-    "SSP": "sv7",    # Stellar Crown
+    "SCR": "sv7",    # Stellar Crown
+    "SSP": "sv8",    # Surging Sparks 
     "SVE": "sve",    # Energías básicas
     "151": "sv3pt5", # 151
-    "SHF": "sv6pt5"  # Shrouded Fable (por si lo usas más adelante)
+    "PAF": "sv4pt5", # Paldean Fates
+    "SFA": "sv6pt5", # Shrouded Fable
+    "PRE": "sv8pt5"  # Prismatic Evolutions
 }
 
 # Cargar las cartas desde la base de datos con orden numérico
@@ -50,7 +56,7 @@ def load_cards():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT c.card_id, c.name, c.set_name, m.quantity, c.rarity, c.type
+    SELECT c.card_id, c.name, c.set_name, m.quantity, c.rarity, c.type, c.supertype
     FROM cards c
     JOIN my_collection m ON c.card_id = m.card_id
     ORDER BY c.set_id, CAST(c.number AS INTEGER)
@@ -110,7 +116,7 @@ class CardApp:
         except tk.TclError as e:
             print(f"Error al cargar el ícono: {e}")
         
-        self.root.geometry("1000x700")
+        self.root.geometry("1100x700")
         self.current_card_id = None
 
         # Mostrar mensaje de carga
@@ -154,7 +160,7 @@ class CardApp:
 
         # Filtro por conjunto
         ttk.Label(self.filter_frame, text="Conjunto:").grid(row=0, column=2, padx=5, pady=2)
-        self.set_filter = ttk.Combobox(self.filter_frame, values=["Todos", "Scarlet & Violet", "Paldea Evolved", "Obsidian Flames", "151", "Paradox Rift", "Paldean Fates", "Temporal Forces", "Twilight Masquerade", "Shrouded Fable", "Stellar Crown"], state="readonly")
+        self.set_filter = ttk.Combobox(self.filter_frame, values=["Todos", "Scarlet & Violet", "Paldea Evolved", "Obsidian Flames", "151", "Paradox Rift", "Paldean Fates", "Temporal Forces", "Twilight Masquerade", "Shrouded Fable", "Stellar Crown", "Surging Sparks", "Prismatic Evolutions"], state="readonly")
         self.set_filter.grid(row=0, column=3, padx=5, pady=2)
         self.set_filter.set("Todos")
         self.set_filter.bind("<<ComboboxSelected>>", self.apply_filters)
@@ -216,16 +222,18 @@ class CardApp:
         self.rarity_label.grid(row=4, column=0, sticky="w")
         self.type_label = ttk.Label(self.details_frame, text="Tipo: ")
         self.type_label.grid(row=5, column=0, sticky="w")
+        self.supertype_label = ttk.Label(self.details_frame, text="Supertipo: ")
+        self.supertype_label.grid(row=6, column=0, sticky="w")
 
         # Campo para editar cantidad
-        ttk.Label(self.details_frame, text="Nueva Cantidad:").grid(row=6, column=0, sticky="w", pady=5)
+        ttk.Label(self.details_frame, text="Nueva Cantidad:").grid(row=7, column=0, sticky="w", pady=5)
         self.quantity_entry = ttk.Spinbox(self.details_frame, from_=0, to=999, width=5)
-        self.quantity_entry.grid(row=7, column=0, sticky="w")
-        ttk.Button(self.details_frame, text="Actualizar Cantidad", command=self.save_quantity).grid(row=8, column=0, pady=5)
+        self.quantity_entry.grid(row=8, column=0, sticky="w")
+        ttk.Button(self.details_frame, text="Actualizar Cantidad", command=self.save_quantity).grid(row=9, column=0, pady=5)
 
         # Área para la imagen
         self.image_label = ttk.Label(self.details_frame)
-        self.image_label.grid(row=9, column=0, pady=10)
+        self.image_label.grid(row=10, column=0, pady=10)
 
         # Configurar el tamaño
         self.list_main_frame.columnconfigure(1, weight=1)
@@ -246,16 +254,33 @@ class CardApp:
         self.decks_listbox.pack(side="left", padx=5, pady=5)
         self.decks_listbox.bind("<<ListboxSelect>>", self.show_deck_cards)
 
+        # Frame derecho para Canvas y resumen
+        self.right_frame = ttk.Frame(self.decks_main_frame)
+        self.right_frame.pack(side="left", fill="both", expand=True)
+
         # Canvas para mostrar las cartas del mazo
-        self.deck_canvas = tk.Canvas(self.decks_main_frame)
-        self.deck_scrollbar = ttk.Scrollbar(self.decks_main_frame, orient="vertical", command=self.deck_canvas.yview)
+        self.deck_canvas = tk.Canvas(self.right_frame)
+        self.deck_scrollbar = ttk.Scrollbar(self.right_frame, orient="vertical", command=self.deck_canvas.yview)
         self.deck_canvas.configure(yscrollcommand=self.deck_scrollbar.set)
 
         self.deck_scrollbar.pack(side="right", fill="y")
-        self.deck_canvas.pack(side="left", fill="both", expand=True)
+        self.deck_canvas.pack(fill="both", expand=True)
 
         self.deck_inner_frame = ttk.Frame(self.deck_canvas)
         self.deck_canvas.create_window((0, 0), window=self.deck_inner_frame, anchor="nw")
+
+        # Frame para el resumen
+        self.summary_frame = ttk.LabelFrame(self.right_frame, text="Resumen del Mazo", padding="5")
+        self.summary_frame.pack(fill="x", pady=5)
+
+        self.pokemon_summary = ttk.Label(self.summary_frame, text="Pokémon: 0")
+        self.pokemon_summary.pack(anchor="w")
+        self.trainer_summary = ttk.Label(self.summary_frame, text="Entrenador: 0")
+        self.trainer_summary.pack(anchor="w")
+        self.energy_summary = ttk.Label(self.summary_frame, text="Energías: 0")
+        self.energy_summary.pack(anchor="w")
+        self.energy_details = ttk.Label(self.summary_frame, text="")
+        self.energy_details.pack(anchor="w")
 
         # Configurar el desplazamiento
         self.deck_inner_frame.bind("<Configure>", lambda e: self.deck_canvas.configure(scrollregion=self.deck_canvas.bbox("all")))
@@ -265,7 +290,6 @@ class CardApp:
         self.update_decks_listbox()
 
     def open_import_deck_window(self):
-        # Ventana emergente para importar un mazo
         import_window = tk.Toplevel(self.root)
         import_window.title("Importar Nuevo Mazo")
         import_window.geometry("400x500")
@@ -319,9 +343,9 @@ class CardApp:
         if messagebox.askyesno("Confirmar", f"¿Seguro que quieres borrar el mazo '{deck_name}'?"):
             delete_deck(deck_id)
             self.update_decks_listbox()
-            # Limpiar la vista de cartas
             for widget in self.deck_inner_frame.winfo_children():
                 widget.destroy()
+            self.update_summary(0, 0, 0, {})
             messagebox.showinfo("Éxito", f"Mazo '{deck_name}' borrado.")
 
     def update_decks_listbox(self):
@@ -344,32 +368,65 @@ class CardApp:
         # Parsear el texto del mazo
         cards = self.parse_deck_text(deck_text)
 
-        # Mostrar las cartas en el Canvas
+        # Contar Pokémon, Entrenadores y Energías
+        pokemon_count = 0
+        trainer_count = 0
+        energy_count = 0
+        energy_types = {}
+
+        card_dict = {card[0]: card[6] for card in self.all_cards}  # card_id: supertype
+
+        for qty, name, set_code, number in cards:
+            api_set_code = SET_MAPPING.get(set_code.upper(), set_code.lower())
+            card_id = f"{api_set_code}-{number}"
+            supertype = card_dict.get(card_id, None)
+
+            # Si no está en card_dict, deducir supertype del nombre
+            if supertype is None:
+                if "Energy" in name:
+                    supertype = "Energy"
+                elif set_code in SET_MAPPING:  # Aproximación para Pokémon
+                    supertype = "Pokémon"
+                else:
+                    supertype = "Trainer"  # Aproximación para Entrenadores
+
+            if supertype == "Pokémon":
+                pokemon_count += qty
+            elif supertype == "Trainer":
+                trainer_count += qty
+            elif supertype == "Energy":
+                energy_count += qty
+                energy_name = name.split(" Energy")[0] if " Energy" in name else name
+                energy_types[energy_name] = energy_types.get(energy_name, 0) + qty
+
+        # Actualizar el resumen
+        self.update_summary(pokemon_count, trainer_count, energy_count, energy_types)
+
+        # Mostrar todas las cartas en el Canvas
         for widget in self.deck_inner_frame.winfo_children():
             widget.destroy()
-        self.photos = []  # Guardar referencias a las imágenes
+        self.photos = []
 
-        cols = 4
+        cols = 5
         row = 0
         col = 0
         for qty, name, set_code, number in cards:
-            # Traducir el código del set al formato de la API
             api_set_code = SET_MAPPING.get(set_code.upper(), set_code.lower())
             card_id = f"{api_set_code}-{number}"
             image_path = os.path.join(IMAGE_FOLDER, f"{card_id}.png")
             if os.path.exists(image_path):
                 img = Image.open(image_path)
-                img = img.resize((150, 210), Image.LANCZOS)
+                img = img.resize((120, 168), Image.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 self.photos.append(photo)
 
                 card_frame = ttk.Frame(self.deck_inner_frame)
-                card_frame.grid(row=row, column=col, padx=5, pady=5)
+                card_frame.grid(row=row, column=col, padx=2, pady=2)
 
                 img_label = ttk.Label(card_frame, image=photo)
                 img_label.pack()
 
-                ttk.Label(card_frame, text=f"{name} ({set_code} {number})").pack()
+                ttk.Label(card_frame, text=f"{name}", wraplength=110).pack()
                 ttk.Label(card_frame, text=f"Cant: {qty}").pack()
 
                 col += 1
@@ -379,13 +436,18 @@ class CardApp:
             else:
                 print(f"Imagen no encontrada: {image_path}")
 
+    def update_summary(self, pokemon_count, trainer_count, energy_count, energy_types):
+        self.pokemon_summary.config(text=f"Pokémon: {pokemon_count}")
+        self.trainer_summary.config(text=f"Entrenador: {trainer_count}")
+        self.energy_summary.config(text=f"Energías: {energy_count}")
+        energy_text = "\n".join([f"  {name}: {qty}" for name, qty in energy_types.items()])
+        self.energy_details.config(text=energy_text if energy_text else "  Ninguna")
+
     def parse_deck_text(self, deck_text):
-        # Parsear el texto del mazo en una lista de (cantidad, nombre, set_code, número)
         cards = []
         lines = deck_text.splitlines()
         for line in lines:
             line = line.strip()
-            # Ajustar el regex para soportar nombres con espacios y sets/números al final
             match = re.match(r"(\d+)\s+(.+?)\s+([A-Za-z0-9]+)\s+(\d+)$", line)
             if match:
                 qty, name, set_code, number = match.groups()
@@ -403,7 +465,7 @@ class CardApp:
 
         self.filtered_cards = []
         for card in self.all_cards:
-            card_id, name, set_name, quantity, rarity, card_type = card
+            card_id, name, set_name, quantity, rarity, card_type, _ = card
             if name_text and name_text not in name.lower():
                 continue
             if set_choice != "Todos" and set_choice != set_name:
@@ -421,7 +483,7 @@ class CardApp:
     def update_listbox(self):
         self.listbox.delete(0, tk.END)
         for i, card in enumerate(self.filtered_cards):
-            card_id, name, _, quantity, _, _ = card
+            card_id, name, _, quantity, _, _, _ = card
             display_text = f"{card_id} - {name}"
             self.listbox.insert(tk.END, display_text)
             if quantity == 0:
@@ -442,14 +504,23 @@ class CardApp:
         self.show_card_details(event)
 
     def display_card_details(self, card):
-        card_id, name, set_name, quantity, rarity, card_type = card
+        card_id, name, set_name, quantity, rarity, card_type, supertype = card
         self.current_card_id = card_id
         self.card_id_label.config(text=f"ID: {card_id}")
         self.name_label.config(text=f"Nombre: {name}")
         self.set_name_label.config(text=f"Conjunto: {set_name}")
         self.quantity_label.config(text=f"Cantidad: {quantity}")
         self.rarity_label.config(text=f"Rareza: {rarity or 'N/A'}")
-        self.type_label.config(text=f"Tipo: {card_type or 'N/A'}")
+        
+        # Determinar el tipo para energías basado en el nombre
+        if supertype == "Energy":
+            # Extraer el tipo de energía del nombre
+            energy_type = name.split(" Energy")[0] if " Energy" in name else name
+            self.type_label.config(text=f"Tipo: {energy_type}")
+        else:
+            self.type_label.config(text=f"Tipo: {card_type or 'N/A'}")
+        
+        self.supertype_label.config(text=f"Supertipo: {supertype or 'N/A'}")
         self.quantity_entry.delete(0, tk.END)
         self.quantity_entry.insert(0, quantity)
 
@@ -481,8 +552,8 @@ class CardApp:
 
             if new_quantity != current_quantity:
                 update_quantity(self.current_card_id, new_quantity)
-                self.all_cards = [(c[0], c[1], c[2], new_quantity if c[0] == self.current_card_id else c[3], c[4], c[5]) for c in self.all_cards]
-                self.filtered_cards = [(c[0], c[1], c[2], new_quantity if c[0] == self.current_card_id else c[3], c[4], c[5]) for c in self.filtered_cards]
+                self.all_cards = [(c[0], c[1], c[2], new_quantity if c[0] == self.current_card_id else c[3], c[4], c[5], c[6]) for c in self.all_cards]
+                self.filtered_cards = [(c[0], c[1], c[2], new_quantity if c[0] == self.current_card_id else c[3], c[4], c[5], c[6]) for c in self.filtered_cards]
                 self.quantity_label.config(text=f"Cantidad: {new_quantity}")
                 self.update_listbox()
                 messagebox.showinfo("Éxito", f"Cantidad de {self.current_card_id} actualizada a {new_quantity}.")

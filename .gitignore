@@ -1,0 +1,6 @@
+Pruebas.py
+card_images/
+
+# Ignorar archivos de sistema operativo
+.DS_Store
+Thumbs.db
