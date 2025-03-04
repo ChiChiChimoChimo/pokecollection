@@ -1,6 +1,14 @@
-# Como instalar el programa
+# Pokémon TCG Collection Manager
 
-Requiere SQLITE y PYTHON 3.0 o superior
+![Pokémon TCG Logo](https://upload.wikimedia.org/wikipedia/en/thumb/3/3b/Pokemon_Trading_Card_Game_Logo.svg/1200px-Pokemon_Trading_Card_Game_Logo.svg.png)
+
+- **Python 3.12+**
+- **Dependencias**:
+  - `requests` (para la API y descarga de imágenes)
+  - `Pillow` (para manejar imágenes)
+  - `tkinter` (incluido con Python estándar)
+
+# Como instalar el programa
 
 Primero tienes que conseguir una clave personal de la api en este enlace --> [**AQUI**](https://pokemontcg.io/)
 
